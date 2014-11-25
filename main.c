@@ -9,6 +9,8 @@
 
 #include "Secret.h"
 
+#define HOSTNAME "localhost"
+
 int open_pasv(TCPConnection *ftp_conn) {
 	tcp_write(ftp_conn, "PASV\n");
 	
@@ -31,8 +33,6 @@ int open_pasv(TCPConnection *ftp_conn) {
 	while (( current = *(arr++) )) {
 		int pos;
 		
-		printf("Part: %s\n", current);
-		
 		if ( (pos = strpos(current, ")")) != -1 )
 			current[pos] = '\0';
 		
@@ -40,8 +40,6 @@ int open_pasv(TCPConnection *ftp_conn) {
 			port = atoi(current) * 256;
 		else if (curr_pos == 5)
 			port += atoi(current);
-		
-		
 		
 		curr_pos++;
 	}
@@ -52,11 +50,11 @@ int open_pasv(TCPConnection *ftp_conn) {
 }
 
 int main() {
-	const char *ip_addr = get_ip_address_with_hostname("gnomo.fe.up.pt");
+	const char *ip_addr = get_ip_address_with_hostname(HOSTNAME);
 	
 	TCPConnection *ftp_conn = tcp_open(ip_addr, 21);
 	
-	printf("Connected to gnomo.fe.up.pt (%s).\n", ip_addr);
+	printf("Connected to %s (%s).\n", HOSTNAME, ip_addr);
 	
 	char *response = (char *) malloc(256 * sizeof(char));
 	
@@ -68,7 +66,7 @@ int main() {
 	
 	//	User Auth
 	
-	tcp_write(ftp_conn, "USER ei12018\n");
+	tcp_write(ftp_conn, "USER MegaEduX\n");
 	
 	response = (char *) malloc(256 * sizeof(char));
 	
@@ -98,15 +96,53 @@ int main() {
 	
 	TCPConnection *pasv = tcp_open(ip_addr, pasv_port);
 	
-	tcp_write(ftp_conn, "LIST");
+	printf("Opened PASV connection...\n");
 	
-	char *ls = malloc(256 * sizeof(char));
+	//	LS
+	
+	tcp_write(ftp_conn, "LIST\n");
+	
+	printf("Wrote LIST to ftp_conn...\n");
+	
+	char *ls = malloc(16777216 * sizeof(char));
+	
+	printf("Reading PASV connection...\n");
 	
 	tcp_read(pasv, ls);
 	
 	printf("%s\n", ls);
 	
 	free(ls);
+	
+	tcp_close(pasv);
+	
+	//	PASV (again...)
+	
+	pasv_port = open_pasv(ftp_conn);
+	
+	printf("PASV Port: %d\n", pasv_port);
+	
+	pasv = tcp_open(ip_addr, pasv_port);
+	
+	printf("Opened PASV connection...\n");
+	
+	//	RETR
+	
+	tcp_write(ftp_conn, "RETR pasterino.zip\n");
+	
+	printf("Wrote RETR to ftp_conn...\n");
+	
+	char *pasterino = malloc(16777216 * sizeof(char));
+	
+	printf("Reading RETR connection...\n");
+	
+	tcp_read(pasv, pasterino);
+	
+	printf("%s\n", pasterino);
+	
+	free(ls);
+	
+	//	Close Connection
 	
 	tcp_close(ftp_conn);
 	
