@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 #include <unistd.h>
 
@@ -38,6 +39,10 @@ TCPConnection *tcp_open(const char *ip_addr, int port) {
 
 int tcp_write(TCPConnection *conn, const char *buf) {
 	return write(conn->sockfd, buf, strlen(buf));
+}
+
+int tcp_read(TCPConnection *conn, char *response) {
+	return read(conn->sockfd, response, 255);
 }
 
 void tcp_close(TCPConnection *conn) {
