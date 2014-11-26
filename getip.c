@@ -16,5 +16,5 @@ const char * get_ip_address_with_hostname(const char *hostname) {
         return NULL;
     }
     
-    return inet_ntoa(*((struct in_addr *)h->h_addr));
+    return inet_ntoa(* ( (struct in_addr *) h->h_addr) );
 }

@@ -1,201 +1,224 @@
+#include <errno.h>
+#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "TCPConnection.h"
 #include "StringUtils.h"
+#include "FTP.h"
 
 #include "getip.h"
 
-#include "Secret.h"
-
-#define HOSTNAME "gnomo.fe.up.pt"
-
-int open_pasv(TCPConnection *ftp_conn) {
-	tcp_write(ftp_conn, "PASV\n");
+const char * get_cwd() {
+	char *cwd = getcwd (0, 0);
 	
-	char *response = (char *) malloc(256 * sizeof(char));
-	
-	tcp_read(ftp_conn, response);
-	
-	printf("%s\n", response);
-	
-	char *ptr = strstr(response, "(");
-	
-	ptr++;
-	
-	char **arr = str_split(ptr, ',');
-	
-	char *current = NULL;
-	
-	int curr_pos = 0;
-	
-	int port = 0;
-	
-	while (( current = *(arr++) )) {
-		int pos;
+	if (!cwd) {
+		fprintf(stderr, "getcwd failed: %s\n", strerror (errno));
 		
-		if ( (pos = strpos(current, ")")) != -1 )
-			current[pos] = '\0';
-		
-		if (curr_pos == 4)
-			port = atoi(current) * 256;
-		else if (curr_pos == 5)
-			port += atoi(current);
-		
-		curr_pos++;
+		return NULL;
 	}
 	
-	free(response);
-	
-	return port;
+	return cwd;
 }
 
-int download(TCPConnection *ftp_conn, const char *file_name) {
-	FILE* file = fopen(file_name, "w");
+int array_len(char **array) {
+	int counter = 0;
 	
-	if (!file) {
-		perror("fopen");
-		return -1;
-	}
+	for (; array[counter] != NULL; counter++);
 	
-	char *receive_buffer = malloc(256 * sizeof(char));
-	
-	int len;
-	
-	while ((len = tcp_read(ftp_conn, receive_buffer))) {
-		if (len < 0) {
-			perror("read");
-			return len;
-		}
-		
-		int error = fwrite(receive_buffer, len, 1, file);
-	
-		if (error < 0) {
-			perror("fwrite");
-			return error;
-		}
-	}
-	
-	fclose(file);
-	
-	return 0;
+	return counter;
 }
 
-int main() {
-	const char *ip_addr = get_ip_address_with_hostname(HOSTNAME);
+char ** parse_ftp_link(char *url) {
+	char *username = NULL, *password = NULL, *host = NULL, *path = NULL, *ptr = strstr(url, "ftp://");
+	
+	if (ptr == NULL) {
+		printf("URL Parse Error.\n");
+		
+		return NULL;
+	}
+	
+	ptr += 6;
+	
+	char **auth_rest = str_split(ptr, '@');
+	
+	if (auth_rest[0] && auth_rest[1]) {
+		//	There's a username here, at least!
+		
+		char *auth = auth_rest[0];
+		
+		int username_len = 0;
+		
+		if ((username_len = strpos(auth, ":")) == -1) {
+			printf("Invalid URL format: Username found, but no password. Aborting...\n");
+			
+			return NULL;
+		}
+		
+		char **userpwd = str_split(auth, ':');
+		
+		username = malloc(strlen(userpwd[0]) * sizeof(char));
+		
+		strcpy(username, userpwd[0]);
+		
+		password = malloc(strlen(userpwd[1]) * sizeof(char));
+		
+		strcpy(password, userpwd[1]);
+		
+		ptr = auth_rest[1];
+	}
+	
+	char **host_path = str_split(ptr, '/');
+	
+	host = malloc(strlen(host_path[0]) * sizeof(char));
+	
+	strcpy(host, host_path[0]);
+	
+	path = malloc(256 * sizeof(char));
+	
+	bzero(path, 256 * sizeof(char));
+	
+	int len = array_len(host_path);
+	
+	int i = 1;
+	
+	for (; i < len; i++) {
+		strcat(path, host_path[i]);
+		strcat(path, "/");
+	}
+	
+	path[strlen(path) - 1] = '\0';
+	
+	char **ret;
+	
+	if (username && password)
+		ret = malloc(5 * sizeof(char *));
+	else
+		ret = malloc(3 * sizeof(char *));
+	
+	int counter = 0;
+	
+	ret[counter++] = host;
+	ret[counter++] = path;
+	
+	if (username && password) {
+		ret[counter++] = username;
+		ret[counter++] = password;
+	}
+	
+	ret[counter] = NULL;
+	
+	return ret;
+}
+
+int main(int argc, char **argv) {
+	if (argc < 2) {
+		char progname[512];
+		strcpy(progname, argv[0]);
+		
+		printf("Usage: %s ftp://[<user>:<password>@]<host>/<file-path>\n", basename(progname));
+		
+		return 0;
+	}
+	
+	char **parsed = parse_ftp_link(argv[1]);
+	
+	if (parsed == NULL)
+		return 1;
+	
+	char *host = parsed[0], *path = parsed[1], *username = parsed[2], *password = parsed[3];
+	
+	const char *ip_addr = get_ip_address_with_hostname(host);
+	
+	if (ip_addr == NULL) {
+		printf("Can't resolve host %s. Aborting...\n", host);
+		
+		return 1;
+	}
 	
 	TCPConnection *ftp_conn = tcp_open(ip_addr, 21);
 	
-	printf("Connected to %s (%s).\n", HOSTNAME, ip_addr);
+	printf("Connected to %s (%s).\n", host, ip_addr);
 	
 	char *response = (char *) malloc(256 * sizeof(char));
 	
 	tcp_read(ftp_conn, response);
 	
-	printf("%s\n", response);
-	
 	free(response);
 	
-	//	User Auth
+	if (username != NULL) {
+		if (ftp_authenticate(ftp_conn, username, password)) {
+			printf("FTP Authentication Failure. Aborting...\n");
+			
+			return 1;
+		}
+		
+		printf("Logged in as \"%s\".\n", username);
+	} else
+		printf("Logged in as guest.\n");
 	
-	tcp_write(ftp_conn, "USER ei12018\n");
+	int pasv_port = ftp_open_pasv(ftp_conn);
 	
-	response = (char *) malloc(256 * sizeof(char));
+	if (pasv_port == -1) {
+		printf("Couldn't get a passive mode port. Aborting...\n");
+		
+		return 1;
+	}
 	
-	tcp_read(ftp_conn, response);
+	TCPConnection *pasv_conn = tcp_open(ip_addr, pasv_port);
 	
-	printf("%s\n", response);
+	char *file_name = NULL;
 	
-	free(response);
+	char **path_array = str_split(path, '/');
 	
-	//	Password Auth
+	int pa_len = array_len(path_array);
 	
-	tcp_write(ftp_conn, PASSWD_COMMAND);
+	int i = 0;
 	
-	response = (char *) malloc(256 * sizeof(char));
+	for (; i < pa_len - 1; i++) {
+		printf("Performing CWD to %s...\n", path_array[i]);
+		
+		ftp_cwd(ftp_conn, path_array[i]);
+	}
 	
-	tcp_read(ftp_conn, response);
+	file_name = path_array[pa_len - 1];
 	
-	printf("%s\n", response);
+	if (ftp_retr(ftp_conn, file_name)) {
+		printf("RETR command failed. Aborting...\n");
+		
+		return 1;
+	}
 	
-	free(response);
+	const char *cwd = get_cwd();
 	
-	/*tcp_write(ftp_conn, "CWD projeto-1\n");
+	if (cwd == NULL) {
+		printf("Couldn't get current working directory. Aborting...\n");
+		
+		return 1;
+	}
 	
-	response = (char *) malloc(256 * sizeof(char));
+	int dl_path_mem = sizeof(cwd) + sizeof(file_name) + 16 * sizeof(char);
 	
-	tcp_read(ftp_conn, response);
+	char *dl_path = malloc(dl_path_mem);
 	
-	printf("%s\n", response);*/
+	bzero(dl_path, dl_path_mem);
 	
-	/*
+	strcat(dl_path, cwd);
 	
-	//	PASV
+	if (dl_path[strlen(dl_path) - 1] != '/')
+		strcat(dl_path, "/");
 	
-	int pasv_port = open_pasv(ftp_conn);
+	strcat(dl_path, file_name);
 	
-	printf("PASV Port: %d\n", pasv_port);
+	printf("Performing download on %s...\n", dl_path);
 	
-	TCPConnection *pasv = tcp_open(ip_addr, pasv_port);
-	
-	printf("Opened PASV connection...\n");
-	
-	//	LS
-	
-	tcp_write(ftp_conn, "LIST\n");
-	
-	printf("Wrote LIST to ftp_conn...\n");
-	
-	char *ls = malloc(16777216 * sizeof(char));
-	
-	printf("Reading PASV connection...\n");
-	
-	tcp_read(pasv, ls);
-	
-	printf("%s\n", ls);
-	
-	response = (char *) malloc(256 * sizeof(char));
-	
-	tcp_read(ftp_conn, response);
-	
-	printf("%s\n", response);
-	
-	free(ls);
-	
-	tcp_close(pasv);
-	
-	*/
-	
-	//	PASV (again...)
-	
-	int pasv_port = open_pasv(ftp_conn);
-	
-	printf("PASV Port: %d\n", pasv_port);
-	
-	TCPConnection *pasv = tcp_open(ip_addr, pasv_port);
-	
-	printf("Opened PASV connection...\n");
-	
-	//	RETR
-	
-	tcp_write(ftp_conn, "RETR pfs.png\n");
-	
-	printf("Wrote RETR to ftp_conn...\n");
-	
-	//char *pasterino = malloc(16777216 * sizeof(char));
-	
-	printf("Reading PASV connection...\n");
-	
-	//	tcp_read(pasv, pasterino);
-	
-	download(pasv, "/Users/MegaEduX/pasterino.png");
-	
-	//printf("Pasterino Result:\n\n%s\n", pasterino);
-	
-	free(pasv);
-	
-	//	Close Connection
+	if (ftp_download(pasv_conn, dl_path)) {
+		printf("Download failed. Aborting...\n");
+		
+		return 1;
+	}
 	
 	tcp_close(ftp_conn);
 	

@@ -44,23 +44,7 @@ int tcp_write(TCPConnection *conn, const char *buf) {
 int tcp_read(TCPConnection *conn, char *response) {
 	int bytes_read = read(conn->sockfd, response, 256);
 	
-	printf("Read %d bytes.\n", bytes_read);
-	
 	return bytes_read;
-	
-	/*int cur_size = bytes_read;
-	
-	char *ptr = response;
-	
-	while (bytes_read == 255) {
-		response = realloc(response, cur_size += 255);
-		
-		ptr += 255;
-		
-		bytes_read = read(conn->sockfd, response, 255);
-	}
-	
-	return bytes_read;*/
 }
 
 void tcp_close(TCPConnection *conn) {
