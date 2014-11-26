@@ -9,7 +9,7 @@
 
 #include "Secret.h"
 
-#define HOSTNAME "192.168.1.65"
+#define HOSTNAME "gnomo.fe.up.pt"
 
 int open_pasv(TCPConnection *ftp_conn) {
 	tcp_write(ftp_conn, "PASV\n");
@@ -99,7 +99,7 @@ int main() {
 	
 	//	User Auth
 	
-	tcp_write(ftp_conn, "USER MegaEduX\n");
+	tcp_write(ftp_conn, "USER ei12018\n");
 	
 	response = (char *) malloc(256 * sizeof(char));
 	
@@ -120,6 +120,14 @@ int main() {
 	printf("%s\n", response);
 	
 	free(response);
+	
+	/*tcp_write(ftp_conn, "CWD projeto-1\n");
+	
+	response = (char *) malloc(256 * sizeof(char));
+	
+	tcp_read(ftp_conn, response);
+	
+	printf("%s\n", response);*/
 	
 	/*
 	
@@ -171,7 +179,7 @@ int main() {
 	
 	//	RETR
 	
-	tcp_write(ftp_conn, "RETR foo\n");
+	tcp_write(ftp_conn, "RETR pfs.png\n");
 	
 	printf("Wrote RETR to ftp_conn...\n");
 	
@@ -181,7 +189,7 @@ int main() {
 	
 	//	tcp_read(pasv, pasterino);
 	
-	download(pasv, "/Users/MegaEduX/foo");
+	download(pasv, "/Users/MegaEduX/pasterino.png");
 	
 	//printf("Pasterino Result:\n\n%s\n", pasterino);
 	
