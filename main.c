@@ -9,7 +9,7 @@
 
 #include "Secret.h"
 
-#define HOSTNAME "localhost"
+#define HOSTNAME "192.168.1.65"
 
 int open_pasv(TCPConnection *ftp_conn) {
 	tcp_write(ftp_conn, "PASV\n");
@@ -17,6 +17,8 @@ int open_pasv(TCPConnection *ftp_conn) {
 	char *response = (char *) malloc(256 * sizeof(char));
 	
 	tcp_read(ftp_conn, response);
+	
+	printf("%s\n", response);
 	
 	char *ptr = strstr(response, "(");
 	
@@ -47,6 +49,37 @@ int open_pasv(TCPConnection *ftp_conn) {
 	free(response);
 	
 	return port;
+}
+
+int download(TCPConnection *ftp_conn, const char *file_name) {
+	FILE* file = fopen(file_name, "w");
+	
+	if (!file) {
+		perror("fopen");
+		return -1;
+	}
+	
+	char *receive_buffer = malloc(256 * sizeof(char));
+	
+	int len;
+	
+	while ((len = tcp_read(ftp_conn, receive_buffer))) {
+		if (len < 0) {
+			perror("read");
+			return len;
+		}
+		
+		int error = fwrite(receive_buffer, len, 1, file);
+	
+		if (error < 0) {
+			perror("fwrite");
+			return error;
+		}
+	}
+	
+	fclose(file);
+	
+	return 0;
 }
 
 int main() {
@@ -88,6 +121,8 @@ int main() {
 	
 	free(response);
 	
+	/*
+	
 	//	PASV
 	
 	int pasv_port = open_pasv(ftp_conn);
@@ -112,35 +147,45 @@ int main() {
 	
 	printf("%s\n", ls);
 	
+	response = (char *) malloc(256 * sizeof(char));
+	
+	tcp_read(ftp_conn, response);
+	
+	printf("%s\n", response);
+	
 	free(ls);
 	
 	tcp_close(pasv);
 	
+	*/
+	
 	//	PASV (again...)
 	
-	pasv_port = open_pasv(ftp_conn);
+	int pasv_port = open_pasv(ftp_conn);
 	
 	printf("PASV Port: %d\n", pasv_port);
 	
-	pasv = tcp_open(ip_addr, pasv_port);
+	TCPConnection *pasv = tcp_open(ip_addr, pasv_port);
 	
 	printf("Opened PASV connection...\n");
 	
 	//	RETR
 	
-	tcp_write(ftp_conn, "RETR pasterino.zip\n");
+	tcp_write(ftp_conn, "RETR foo\n");
 	
 	printf("Wrote RETR to ftp_conn...\n");
 	
-	char *pasterino = malloc(16777216 * sizeof(char));
+	//char *pasterino = malloc(16777216 * sizeof(char));
 	
-	printf("Reading RETR connection...\n");
+	printf("Reading PASV connection...\n");
 	
-	tcp_read(pasv, pasterino);
+	//	tcp_read(pasv, pasterino);
 	
-	printf("%s\n", pasterino);
+	download(pasv, "/Users/MegaEduX/foo");
 	
-	free(ls);
+	//printf("Pasterino Result:\n\n%s\n", pasterino);
+	
+	free(pasv);
 	
 	//	Close Connection
 	

@@ -42,7 +42,11 @@ int tcp_write(TCPConnection *conn, const char *buf) {
 }
 
 int tcp_read(TCPConnection *conn, char *response) {
-	return read(conn->sockfd, response, 16777216);
+	int bytes_read = read(conn->sockfd, response, 256);
+	
+	printf("Read %d bytes.\n", bytes_read);
+	
+	return bytes_read;
 	
 	/*int cur_size = bytes_read;
 	
