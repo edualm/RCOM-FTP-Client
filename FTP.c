@@ -11,7 +11,9 @@ int ftp_open_pasv(TCPConnection *ftp_conn) {
 	tcp_write(ftp_conn, "PASV\n");
 
 	char *response = (char *) malloc(256 * sizeof(char));
-
+	
+	bzero(response, 256 * sizeof(char));
+	
 	tcp_read(ftp_conn, response);
 
 	char *ptr = strstr(response, "(");
@@ -48,6 +50,8 @@ int ftp_open_pasv(TCPConnection *ftp_conn) {
 int ftp_retr(TCPConnection *ftp_conn, const char *file_name) {
 	char *retr_command = malloc((8 + strlen(file_name)) * sizeof(char));
 	
+	bzero(retr_command, (8 + strlen(file_name)) * sizeof(char));
+	
 	strcat(retr_command, "RETR ");
 	strcat(retr_command, file_name);
 	strcat(retr_command, "\n");
@@ -55,6 +59,8 @@ int ftp_retr(TCPConnection *ftp_conn, const char *file_name) {
 	tcp_write(ftp_conn, retr_command);
 	
 	char *response = (char *) malloc(256 * sizeof(char));
+	
+	bzero(response, (8 + strlen(file_name)) * sizeof(char));
 	
 	tcp_read(ftp_conn, response);
 	
@@ -74,6 +80,8 @@ int ftp_retr(TCPConnection *ftp_conn, const char *file_name) {
 int ftp_cwd(TCPConnection *ftp_conn, const char *path) {
 	char *cwd_command = malloc((6 + strlen(path)) * sizeof(char));
 	
+	bzero(cwd_command, (6 + strlen(path)) * sizeof(char));
+	
 	strcat(cwd_command, "CWD ");
 	strcat(cwd_command, path);
 	strcat(cwd_command, "\n");
@@ -81,6 +89,8 @@ int ftp_cwd(TCPConnection *ftp_conn, const char *path) {
 	tcp_write(ftp_conn, cwd_command);
 
 	char *response = (char *) malloc(256 * sizeof(char));
+	
+	bzero(response, 256 * sizeof(char));
 
 	tcp_read(ftp_conn, response);
 
@@ -90,30 +100,40 @@ int ftp_cwd(TCPConnection *ftp_conn, const char *path) {
 	return 0;
 }
 
-int ftp_download(TCPConnection *ftp_conn, const char *file_name) {
+int ftp_download(TCPConnection *ftp_conn, char *file_name) {
 	FILE* file = fopen(file_name, "w");
-
+	
 	if (!file) {
 		perror("fopen");
 		return -1;
 	}
 
-	char *receive_buffer = malloc(256 * sizeof(char));
+	char *receive_buffer = malloc(8 + 256 * sizeof(char));
+	
+	bzero(receive_buffer, 8 + 256 * sizeof(char));
 
-	int len;
+	int len = 0;
 
 	while ((len = tcp_read(ftp_conn, receive_buffer))) {
 		if (len < 0) {
 			perror("read");
+			
 			return len;
 		}
 
 		int error = fwrite(receive_buffer, len, 1, file);
-
+		
 		if (error < 0) {
 			perror("fwrite");
+			
 			return error;
 		}
+		
+		free(receive_buffer);
+		
+		receive_buffer = malloc(8 + 256 * sizeof(char));
+		
+		bzero(receive_buffer, 8 + 256 * sizeof(char));
 	}
 
 	fclose(file);
@@ -128,6 +148,8 @@ int ftp_authenticate(TCPConnection *ftp_conn, const char *username, const char *
 	
 	char *user_str = malloc((8 + strlen(username)) * sizeof(char));
 	
+	bzero(user_str, (8 + strlen(username)) * sizeof(char));
+	
 	strcat(user_str, "USER ");
 	strcat(user_str, username);
 	strcat(user_str, "\n");
@@ -136,13 +158,15 @@ int ftp_authenticate(TCPConnection *ftp_conn, const char *username, const char *
 	
 	char *response = (char *) malloc(256 * sizeof(char));
 	
-	tcp_read(ftp_conn, response);
+	bzero(response, 256 * sizeof(char));
 	
-	free(response);
+	tcp_read(ftp_conn, response);
 	
 	usleep(500000);
 	
 	char *passwd_str = malloc((8 + strlen(password)) * sizeof(char));
+	
+	bzero(passwd_str, (8 + strlen(password)) * sizeof(char));
 	
 	strcat(passwd_str, "PASS ");
 	strcat(passwd_str, password);
@@ -150,7 +174,11 @@ int ftp_authenticate(TCPConnection *ftp_conn, const char *username, const char *
 	
 	tcp_write(ftp_conn, passwd_str);
 	
+	free(response);
+	
 	response = (char *) malloc(256 * sizeof(char));
+	
+	bzero(response, 256 * sizeof(char));
 	
 	tcp_read(ftp_conn, response);
 	

@@ -156,8 +156,17 @@ int main(int argc, char **argv) {
 		}
 		
 		printf("Logged in as \"%s\".\n", username);
-	} else
-		printf("Logged in as guest.\n");
+	} else {
+		printf("No login details provided - attempting to login as anonymous:guest...\n");
+		
+		if (ftp_authenticate(ftp_conn, "anonymous", "guest")) {
+			printf("FTP Authentication Failure. Aborting...\n");
+			
+			return 1;
+		}
+		
+		printf("Logged in as anonymous.\n");
+	}
 	
 	int pasv_port = ftp_open_pasv(ftp_conn);
 	
@@ -189,7 +198,7 @@ int main(int argc, char **argv) {
 		printf("RETR command failed. Aborting...\n");
 		
 		return 1;
-	}
+	}	
 	
 	const char *cwd = get_cwd();
 	
@@ -201,7 +210,7 @@ int main(int argc, char **argv) {
 	
 	int dl_path_mem = sizeof(cwd) + sizeof(file_name) + 16 * sizeof(char);
 	
-	char *dl_path = malloc(dl_path_mem);
+	char *dl_path = malloc(1024 * sizeof(char));
 	
 	bzero(dl_path, dl_path_mem);
 	
@@ -221,6 +230,8 @@ int main(int argc, char **argv) {
 	}
 	
 	tcp_close(ftp_conn);
+	
+	printf("All done! Quitting...\n");
 	
 	return 0;
 }
